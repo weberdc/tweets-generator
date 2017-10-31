@@ -75,7 +75,7 @@ Usage: bin/tweets-generator[.bat] [options]
     -c, --tweet-count
       Number of tweets to generate
       Default: 100
-    -uc, --user-count
+    -uc, --users-count
       Number of users to generate if they don't exist
       Default: 100
     -u, --users-file
@@ -93,11 +93,12 @@ prompt> bin/tweets-generator -m data/alice-in-wonderland-snippets.txt \
   --out-file 20171120-am-10k.json \
   --regenerate-users \
   --users-file my-users.json \
+  --users-count 150 \
   --tweet-count 10000 \
   --verbose
 </pre>
 
 This will create a file `20171020-am-10k.json` containing 10,000 tweets, as
-one JSON object per line. It will also create a file `users.json` with 100 user
+one JSON object per line. It will also create a file `my-users.json` with 150 user
 profiles (one JSON object per line).
 

@@ -31,6 +31,9 @@ dependencies {
     // For command line argument parsing
     compile 'com.beust:jcommander:1.72'
 
+    // Twitter-text library for extracting info from tweets (hashtags, mentions, etc)
+    compile 'com.twitter:twitter-text:1.14.7'
+
     // Use JUnit test framework
     testCompile 'junit:junit:4.12'
 }

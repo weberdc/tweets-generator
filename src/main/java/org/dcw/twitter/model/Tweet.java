@@ -22,6 +22,8 @@ public class Tweet {
     private Map<String,?> current_user_retweet;
     @JsonProperty("entities")
     private Map<String,?> entities;
+    @JsonProperty("extended_entities")
+    private Map<String,?> extended_entities;
     @JsonProperty("favorite_count")
     private Integer favorite_count;
     @JsonProperty("favorited")
@@ -94,6 +96,7 @@ public class Tweet {
      * @param created_at The <code>created_at</code> property.
      * @param current_user_retweet The <code>current_user_retweet</code> property.
      * @param entities The <code>entities</code> property.
+     * @param extended_entities The <code>extended_entities</code> property.
      * @param favorite_count The <code>favorite_count</code> property.
      * @param favorited The <code>favorited</code> property.
      * @param filter_level The <code>filter_level</code> property.
@@ -136,6 +139,8 @@ public class Tweet {
         final Map<String,?> current_user_retweet,
         @JsonProperty("entities")
         final Map<String,?> entities,
+        @JsonProperty("extended_entities")
+        final Map<String,?> extended_entities,
         @JsonProperty("favorite_count")
         final Integer favorite_count,
         @JsonProperty("favorited")
@@ -205,6 +210,7 @@ public class Tweet {
         this.created_at = created_at;
         this.current_user_retweet = current_user_retweet;
         this.entities = entities;
+        this.extended_entities = extended_entities;
         this.favorite_count = favorite_count;
         this.favorited = favorited;
         this.filter_level = filter_level;
@@ -301,6 +307,22 @@ public class Tweet {
      */
     public void setEntities(final Map<String,?> entities) {
         this.entities = entities;
+    }
+
+    /**
+     * Returns the <code>extended_entities</code> property value from the {@link #extended_entities} field.
+     */
+    public Map<String,?> getExtended_entities() {
+        return extended_entities;
+    }
+
+    /**
+     * Sets the <code>extended_entities</code> property value to <code>extended_entities</code>.
+     *
+     * @param extended_entities The new value for the <code>extended_entities</code> property.
+     */
+    public void setExtended_entities(final Map<String,?> extended_entities) {
+        this.extended_entities = extended_entities;
     }
 
     /**

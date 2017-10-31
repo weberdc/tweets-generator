@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Range;
+import com.twitter.Extractor;
 import org.dcw.twitter.model.User;
 import org.dcw.twitter.model.Tweet;
 import org.dcw.twitter.util.RandomDate;
@@ -56,7 +57,7 @@ public class Main {
     private String endTimeStr = "201710300930";
     @Parameter(names = {"-c", "--tweet-count"}, description = "Number of tweets to generate")
     private Integer tweetCount = 100;
-    @Parameter(names = {"-uc", "--user-count"}, description = "Number of users to generate if they don't exist")
+    @Parameter(names = {"-uc", "--users-count"}, description = "Number of users to generate if they don't exist")
     private Integer userCount = 100;
     @Parameter(names = {"--regenerate-users"}, description = "Regenerate users. NB will wipe users file! (default: false)")
     private boolean regenerateUsers = false;
@@ -90,7 +91,6 @@ public class Main {
         }
     }
     private void setupUserCounts() {
-//        final int[][] userCounts = new int[4][];
         Random r = randoms.get("counts"); // relies on setupRandomGenerators() being called first
         userCounts[0] = new int[]{ // light user
             3 + r.nextInt(7), // follower_count
@@ -232,8 +232,8 @@ public class Main {
         final String description = Utils.getHalfString(descPart1) + " " + Utils.getHalfString(descPart2);
         final Boolean isProtected = Range.open(0,1).contains(nextInt("isProtected", 100)); // 1% protected
         final Boolean isVerified = Range.open(0,5).contains(nextInt("isVerified", 100)); // 5% protected
-        final LocalDate estabDate = randomEstabDate.nextDate();
-        final long daysActive = LocalDate.now().toEpochDay() - estabDate.toEpochDay();
+        final ZonedDateTime estabTimestamp = Utils.toZDT(randomEstabDate.nextDate().atStartOfDay());
+        final long daysActive = LocalDate.now().toEpochDay() - estabTimestamp.toLocalDate().toEpochDay();
 
         final int activityLevel = randoms.get("famous").nextInt(1000) == 0 // 1 in 1000
             ? 3 // famous
@@ -265,7 +265,7 @@ public class Main {
             rateByTime(userCounts[activityLevel][2], daysActive), // listed_count
             rateByTime(userCounts[activityLevel][3], daysActive), // favourites_count
             rateByTime(userCounts[activityLevel][4], daysActive), // statuses_count
-            TWITTER_TIMESTAMP_FORMAT.format(Utils.toZDT(estabDate.atStartOfDay())), // created_at
+            TWITTER_TIMESTAMP_FORMAT.format(estabTimestamp), // created_at
             36000, // utc_offset
             "Adelaide", // time_zone
             randoms.get("boolean").nextBoolean(), // geo_offset
@@ -341,6 +341,7 @@ public class Main {
             createdAt, // created_at
             null, // current_user_retweet
             createEntities(message), // entities
+            createExtendedEntities(message), // extended_entities
             favouritesCount, // favorites_count
             favouritedOrNot, // favorited
             "low", // filter_level (none, low, medium)
@@ -377,13 +378,20 @@ public class Main {
     }
 
     private Map<String, ?> createEntities(final String message) {
-        final Map<String, List<String>> entities = Maps.newTreeMap();
-        entities.put("hashtags", Lists.newArrayList());
-        entities.put("urls", Lists.newArrayList());
-        entities.put("user_mentions", Lists.newArrayList());
+        final Map<String, List<Extractor.Entity>> entities = Maps.newTreeMap();
+        Extractor e = new Extractor();
+        entities.put("hashtags", e.extractHashtagsWithIndices(message));
+        entities.put("urls", e.extractURLsWithIndices(message));
+        entities.put("user_mentions", e.extractMentionedScreennamesWithIndices(message));
         entities.put("media", Lists.newArrayList());
         entities.put("symbols", Lists.newArrayList());
         entities.put("polls", Lists.newArrayList());
+        return entities;
+    }
+
+    private Map<String, ?> createExtendedEntities(final String message) {
+        final Map<String, List<Extractor.Entity>> entities = Maps.newTreeMap();
+        entities.put("media", Lists.newArrayList());
         return entities;
     }
 
