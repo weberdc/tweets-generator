@@ -2,9 +2,9 @@
 
 Author: **Derek Weber**
 
-Last updated: **2017-10-30**
+Last updated: **2017-10-31**
 
-A tool to generate tweets.
+A tool to mock up tweets and Twitter profiles for datasets.
 
 
 ## Description
