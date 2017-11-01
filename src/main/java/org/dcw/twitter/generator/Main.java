@@ -24,7 +24,10 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 import static java.util.Arrays.asList;
 
 /*
@@ -70,8 +73,8 @@ public class Main {
     private final int[][] userCounts = new int[4][];
     private final Map<String, Random> randoms = Maps.newHashMap();
     private final RandomDate randomEstabDate = new RandomDate(
-        LocalDate.of(2006, 6, 1),
-        LocalDate.of(2017,06, 01)
+        LocalDate.of(2006, 6, 1), // early in Twitter's history
+        LocalDate.now().minus(6, ChronoUnit.MONTHS)
     );
 
     public Main () {
@@ -90,6 +93,7 @@ public class Main {
         }
     }
     private void setupUserCounts() {
+        // I'm sure there's a much more clever way to do this, and research on classes of Twitter users
         Random r = randoms.get("counts"); // relies on setupRandomGenerators() being called first
         userCounts[0] = new int[]{ // light user
             3 + r.nextInt(7), // follower_count
@@ -122,7 +126,7 @@ public class Main {
     }
 
     public static void main(String[] args) throws IOException {
-        Main theApp = new Main();
+        final Main theApp = new Main();
 
         // JCommander instance parses args, populates fields of theApp
         JCommander argsParser = JCommander.newBuilder()
@@ -140,7 +144,9 @@ public class Main {
             }
         }
 
-        if (help) {
+        final LocalDateTime beforeDT = LocalDateTime.from(ARGUMENT_TIMESTAMP_FORMAT.parse(theApp.beginTimeStr));
+        final LocalDateTime endDT = LocalDateTime.from(ARGUMENT_TIMESTAMP_FORMAT.parse(theApp.endTimeStr));
+        if (help || endDT.isBefore(beforeDT)) {
             StringBuilder sb = new StringBuilder();
             argsParser.usage(sb);
             System.out.println(sb.toString());
@@ -153,27 +159,30 @@ public class Main {
     public void run() throws IOException {
 
         System.out.println("Generating random tweets");
-        List<String> messages = Files.readAllLines(Paths.get(messagesFile));
+        final List<String> messages = Files.readAllLines(Paths.get(messagesFile));
 
-        List<User> users = loadOrCreateUserProfiles(); // from or into usersFile
+        final List<User> users = loadOrCreateUserProfiles(); // from or into usersFile
 
-        TemporalAccessor start = ARGUMENT_TIMESTAMP_FORMAT.parse(beginTimeStr);
-        TemporalAccessor stop = ARGUMENT_TIMESTAMP_FORMAT.parse(endTimeStr);
+        final TemporalAccessor start = ARGUMENT_TIMESTAMP_FORMAT.parse(beginTimeStr);
+        final TemporalAccessor stop = ARGUMENT_TIMESTAMP_FORMAT.parse(endTimeStr);
 
         reportConfiguration(start, stop);
 
-        List<String> createdAtTimestamps = distributeTweetTimes(start, stop, tweetCount);
-        List<Tweet> tweets = generateTweets(messages, users, createdAtTimestamps);
+        final List<String> timestamps = distributeTweetTimes(start, stop, tweetCount);
+        final List<Tweet> tweets = generateTweets(messages, users, timestamps);
 
         try (BufferedWriter out = Files.newBufferedWriter(
             Paths.get(outFile),
             StandardCharsets.UTF_8,
             StandardOpenOption.CREATE, StandardOpenOption.WRITE
         )) {
+            int i = 0;
             for (Tweet t : tweets) {
+                i++;
                 out.write(json.writeValueAsString(t));
                 out.write('\n');
-                out.flush();
+                if (i % 100 == 0)
+                    out.flush();
             }
         }
         System.out.println("DONE. Tweets written to " + outFile);
@@ -182,27 +191,32 @@ public class Main {
     private List<User> loadOrCreateUserProfiles() throws IOException {
 
         if (Files.exists(Paths.get(usersFile)) && !regenerateUsers) {
-            AtomicInteger counter = new AtomicInteger();
-            return Files.readAllLines(Paths.get(usersFile)).stream().filter(l -> l.trim().length() > 0).map(l -> {
-                counter.incrementAndGet();
-                try {
-                    return Optional.of(json.readValue(l, User.class));
-                } catch (IOException e) {
-                    System.err.printf("Failed to parse JSON: %s:%d\n%s", usersFile, counter.get(), l);
-                    return Optional.empty();
-                }
-            }).filter(o -> o.isPresent())
+            final AtomicInteger lineNumber = new AtomicInteger();
+            return Files.readAllLines(Paths.get(usersFile)).stream()
+                .filter(l -> l.trim().length() > 0)
+                .map(l -> {
+                    lineNumber.incrementAndGet();
+                    try {
+                        return Optional.of(json.readValue(l, User.class));
+                    } catch (IOException e) {
+                        System.err.printf("Failed to parse JSON: %s:%d\n%s", usersFile, lineNumber.get(), l);
+                        return Optional.empty();
+                    }
+                }).filter(o -> o.isPresent())
                 .map(x -> (User) x.get())
                 .collect(Collectors.toList());
         } else {
             if (verbose) System.out.println("Generator users file: " + usersFile);
-            List<User> users = Lists.newArrayList();
+//            final List<User> users = Lists.newArrayList();
+//
+//            for (int i = 0; i < userCount; i++) {
+//                users.add(generateUser());
+//            }
+            final List<User> users = IntStream.range(0, userCount)
+                .mapToObj(i -> generateUser())
+                .collect(Collectors.toList());
 
-            for (int i = 0; i < userCount; i++) {
-                users.add(generateUser());
-            }
-
-            try (BufferedWriter out = Files.newBufferedWriter(
+            try (final BufferedWriter out = Files.newBufferedWriter(
                 Paths.get(usersFile),
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE
@@ -408,13 +422,20 @@ public class Main {
         }
         final long meanDelay = (stopZDT.toEpochSecond() - startZDT.toEpochSecond()) / tweetCount;
 
-        final List<String> timestamps = Lists.newArrayList();
-        long secondsSinceStart = 0L;
-        for (int i = 0; i < tweetCount; i++) {
-            final ZonedDateTime newTimestamp = startZDT.plus(secondsSinceStart, ChronoUnit.SECONDS);
-            timestamps.add(TWITTER_TIMESTAMP_FORMAT.format(newTimestamp));
-            secondsSinceStart += (long) PoissonGenerator.getNext(meanDelay);
-        }
+//        final List<String> timestamps = Lists.newArrayList();
+        final AtomicLong secondsSinceStart = new AtomicLong();//0L;
+        final List<String> timestamps = IntStream.range(0, tweetCount).mapToObj(i -> {
+            final ZonedDateTime newTimestamp = startZDT.plus(secondsSinceStart.getAndAdd((long) PoissonGenerator.getNext(meanDelay)), ChronoUnit.SECONDS);
+//            secondsSinceStart.getAndAdd((long) PoissonGenerator.getNext(meanDelay));
+//            timestamps.add(TWITTER_TIMESTAMP_FORMAT.format(newTimestamp));
+//            secondsSinceStart += (long) PoissonGenerator.getNext(meanDelay);
+            return TWITTER_TIMESTAMP_FORMAT.format(newTimestamp);
+        }).collect(Collectors.toList());
+//        for (int i = 0; i < tweetCount; i++) {
+//            final ZonedDateTime newTimestamp = startZDT.plus(secondsSinceStart, ChronoUnit.SECONDS);
+//            timestamps.add(TWITTER_TIMESTAMP_FORMAT.format(newTimestamp));
+//            secondsSinceStart += (long) PoissonGenerator.getNext(meanDelay);
+//        }
         return timestamps;
     }
 
