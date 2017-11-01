@@ -26,7 +26,6 @@ import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -47,6 +46,8 @@ public class Main {
     private static final int maxQuoteCount = 5000;
     private static final int maxReplyCount = 5000;
     private static final int maxRetweetCount = 5000;
+    private static final Extractor EXTRACTOR = new Extractor();
+    private static final int TWEET_CHAR_LIMIT = 140; // may become 280
 
     @Parameter(names = {"-m", "--messages-file"}, description = "File of tweet contents, one message per line")
     private String messagesFile = "messages.json";
@@ -316,7 +317,7 @@ public class Main {
 
     private String cleanSN(final String sn) {
         // Up to 15 letters, numbers and underscores only - https://support.twitter.com/articles/101299
-        String validChars = sn.replaceAll("[^a-zA-Z0-9_]", "_");
+        final String validChars = sn.replaceAll("[^a-zA-Z0-9_]", "_");
         return (validChars.length() > 15) ? validChars.substring(0, 15) : validChars;
     }
 
@@ -342,16 +343,17 @@ public class Main {
     }
 
     private Tweet makeTweet(final User user, final String message, final String createdAt) {
-        int favouritesCount = nextInt("favorites_count", maxFaveCount);
-        boolean favouritedOrNot = favouritesCount > 0;
-        int quoteCount = nextInt("quote_count", maxQuoteCount);
-        int replyCount = nextInt("reply_count", maxReplyCount);
-        int retweetCount = nextInt("retweet_count",maxRetweetCount);
-        boolean retweetedOrNot = retweetCount > 0;
-        boolean truncated = false;
-        boolean withheldCopyright = false;
-        String source = Resources.SOURCES.get(nextInt("source", Resources.SOURCES.size()));
-        long id = Utils.generateID(randoms.get("id"));
+        final int favouritesCount = nextInt("favorites_count", maxFaveCount);
+        final boolean favouritedOrNot = favouritesCount > 0;
+        final int quoteCount = nextInt("quote_count", maxQuoteCount);
+        final int replyCount = nextInt("reply_count", maxReplyCount);
+        final int retweetCount = nextInt("retweet_count",maxRetweetCount);
+        final boolean retweetedOrNot = retweetCount > 0;
+        final boolean truncated = message.length() > TWEET_CHAR_LIMIT;
+        final String finalMessage = truncated ? message.substring(0, 137) + "..." : message;
+        final boolean withheldCopyright = false;
+        final String source = Resources.SOURCES.get(nextInt("source", Resources.SOURCES.size()));
+        final long id = Utils.generateID(randoms.get("id"));
         return new Tweet(
             null, // coordinates
             createdAt, // created_at
@@ -384,7 +386,7 @@ public class Main {
             null, // retweeted_status
             null, // scopes
             source, // source
-            message, // text
+            finalMessage, // text
             truncated, // truncated
             user, // user
             withheldCopyright, // withheld_copyright
@@ -395,10 +397,9 @@ public class Main {
 
     private Map<String, ?> createEntities(final String message) {
         final Map<String, List<Extractor.Entity>> entities = Maps.newTreeMap();
-        Extractor e = new Extractor();
-        entities.put("hashtags", e.extractHashtagsWithIndices(message));
-        entities.put("urls", e.extractURLsWithIndices(message));
-        entities.put("user_mentions", e.extractMentionedScreennamesWithIndices(message));
+        entities.put("hashtags", EXTRACTOR.extractHashtagsWithIndices(message));
+        entities.put("urls", EXTRACTOR.extractURLsWithIndices(message));
+        entities.put("user_mentions", EXTRACTOR.extractMentionedScreennamesWithIndices(message));
         entities.put("media", Lists.newArrayList());
         entities.put("symbols", Lists.newArrayList());
         entities.put("polls", Lists.newArrayList());
