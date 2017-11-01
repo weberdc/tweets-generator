@@ -4,9 +4,7 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Range;
+import com.google.common.collect.*;
 import com.twitter.Extractor;
 import org.dcw.twitter.model.User;
 import org.dcw.twitter.model.Tweet;
@@ -227,7 +225,7 @@ public class Main {
 
         if (verbose) System.out.println("Generating @" + screenName + " from " + name);
 
-        final String location = Utils.pickOne(asList("Adelaide", "Salisbury", "Noarlunga", "Port Adelaide", "The Moon", null));
+        final String location = Utils.pickOne(Resources.LOCATIONS);
         final String descPart1 = Utils.pickOne(Resources.DESCRIPTIONS);
         final String descPart2 = Utils.pickOne(Resources.DESCRIPTIONS);
         final String description = Utils.getHalfString(descPart1) + " " + Utils.getHalfString(descPart2);
@@ -401,30 +399,36 @@ public class Main {
         final TemporalAccessor stop,
         final Integer tweetCount
     ) {
-        ZonedDateTime zdt1 = Utils.toZDT(LocalDateTime.from(start));
-        ZonedDateTime zdt2 = Utils.toZDT(LocalDateTime.from(stop));
-        long ts1 = zdt1.toEpochSecond();
-        long ts2 = zdt2.toEpochSecond();
-        long gap = (ts2 - ts1) / (tweetCount /*- 1*/);
+        final ZonedDateTime startZDT = Utils.toZDT(LocalDateTime.from(start));
+        final ZonedDateTime stopZDT = Utils.toZDT(LocalDateTime.from(stop));
+        if (verbose) {
+            System.out.printf("Generating %d tweet times\n", tweetCount);
+            System.out.printf("ZDT1 (start): %s\n", startZDT);
+            System.out.printf("ZDT2 (stop) : %s\n", stopZDT);
+        }
+        final long meanDelay = (stopZDT.toEpochSecond() - startZDT.toEpochSecond()) / tweetCount;
 
-        List<String> timestamps = Lists.newArrayList();
-        long currentTS = ts1;
+        final List<String> timestamps = Lists.newArrayList();
+        long secondsSinceStart = 0L;
         for (int i = 0; i < tweetCount; i++) {
-            timestamps.add(TWITTER_TIMESTAMP_FORMAT.format(zdt1.plus(currentTS, ChronoUnit.SECONDS)));
-            currentTS += (long) PoissonGenerator.getNext(gap);
+            final ZonedDateTime newTimestamp = startZDT.plus(secondsSinceStart, ChronoUnit.SECONDS);
+            timestamps.add(TWITTER_TIMESTAMP_FORMAT.format(newTimestamp));
+            secondsSinceStart += (long) PoissonGenerator.getNext(meanDelay);
         }
         return timestamps;
     }
 
     private void reportConfiguration(TemporalAccessor start, TemporalAccessor stop) {
-        System.out.println("Tweet Generator");
-        System.out.printf("Messages file: %s\n", messagesFile);
-        System.out.printf("Users file: %s\n", usersFile);
-        System.out.printf("Output file: %s\n", outFile);
-        System.out.printf("Tweets to generate: %d\n", tweetCount);
-        System.out.printf("Start timestamp: %s\n", TWITTER_TIMESTAMP_FORMAT.format(Utils.toZDT(LocalDateTime.from(start))));
-        System.out.printf("End timestamp: %s\n", TWITTER_TIMESTAMP_FORMAT.format(Utils.toZDT(LocalDateTime.from(stop))));
-        System.out.printf("Verbose mode: %s\n", verbose ? "ON" : "OFF");
-    }
+        final String startTS = TWITTER_TIMESTAMP_FORMAT.format(Utils.toZDT(LocalDateTime.from(start)));
+        final String stopTS = TWITTER_TIMESTAMP_FORMAT.format(Utils.toZDT(LocalDateTime.from(stop)));
 
+        System.out.println("Tweet Generator");
+        System.out.printf("- Messages file: %s\n", messagesFile);
+        System.out.printf("- Users file: %s\n", usersFile);
+        System.out.printf("- Output file: %s\n", outFile);
+        System.out.printf("- Tweets to generate: %d\n", tweetCount);
+        System.out.printf("- Start timestamp: %s\n", startTS);
+        System.out.printf("- End timestamp: %s\n", stopTS);
+        System.out.printf("- Verbose mode: %s\n", verbose ? "ON" : "OFF");
+    }
 }

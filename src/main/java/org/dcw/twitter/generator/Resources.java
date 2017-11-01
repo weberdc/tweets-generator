@@ -1,11 +1,17 @@
 package org.dcw.twitter.generator;
 
-import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Arrays.asList;
 
+/**
+ * Resources used in the creation of the tweets and Twitter profiles. These are taken from real tweets or
+ * invented and then are randomly distributed and munged (split and combined) as needed.
+ */
 public class Resources {
+    static final List<String> LOCATIONS = asList("Adelaide", "Salisbury", "Noarlunga", "Port Adelaide", "The Moon",
+        "My Living Room", null
+    );
     static final List<String> NAME_PARTS = asList(
         "#BankRC","#Crime","#someprivacyplease","(((Bee's",".michelle","::Sovereign:colons::","Snoozy","Cloud","Star","Russia",
         "Heart","Coffee","100%Chelsea","6UNTR01","A","Aamer","ABC","according","ACT","Ada","ainsindahouse","Ajaxx","Ajay",
