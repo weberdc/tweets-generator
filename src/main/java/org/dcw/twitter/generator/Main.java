@@ -16,6 +16,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.*;
@@ -25,8 +26,10 @@ import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 
@@ -74,14 +77,13 @@ public class Main {
     private final Map<String, Random> randoms = Maps.newHashMap();
     private final RandomDate randomEstabDate = new RandomDate(
         LocalDate.of(2006, 6, 1), // early in Twitter's history
-        LocalDate.now().minus(6, ChronoUnit.MONTHS)
+        LocalDate.now().minus(6, ChronoUnit.MONTHS) // up to 6 months ago
     );
 
     public Main () {
         setupRandomGenerators();
         setupUserCounts();
     }
-
 
     private void setupRandomGenerators() {
         for (String name : asList(
@@ -92,6 +94,7 @@ public class Main {
             randoms.put(name, new Random());
         }
     }
+
     private void setupUserCounts() {
         // I'm sure there's a much more clever way to do this, and research on classes of Twitter users
         Random r = randoms.get("counts"); // relies on setupRandomGenerators() being called first
@@ -171,18 +174,19 @@ public class Main {
         final List<String> timestamps = distributeTweetTimes(start, stop, tweetCount);
         final List<Tweet> tweets = generateTweets(messages, users, timestamps);
 
+        final Path outPath = Paths.get(outFile);
+        if (Files.deleteIfExists(outPath)) {
+            // I found, if an existing file was not emptied, it retained its final characters/lines
+            System.err.printf("Warning: Existing file %s was deleted before writing to it.\n", outFile);
+        }
         try (BufferedWriter out = Files.newBufferedWriter(
-            Paths.get(outFile),
+            outPath,
             StandardCharsets.UTF_8,
             StandardOpenOption.CREATE, StandardOpenOption.WRITE
         )) {
-            int i = 0;
             for (Tweet t : tweets) {
-                i++;
                 out.write(json.writeValueAsString(t));
                 out.write('\n');
-                if (i % 100 == 0)
-                    out.flush();
             }
         }
         System.out.println("DONE. Tweets written to " + outFile);
@@ -199,11 +203,10 @@ public class Main {
                     try {
                         return Optional.of(json.readValue(l, User.class));
                     } catch (IOException e) {
-                        System.err.printf("Failed to parse JSON: %s:%d\n%s", usersFile, lineNumber.get(), l);
+                        System.err.printf("Warning: Failed to parse JSON: %s:%d\n%s", usersFile, lineNumber.get(), l);
                         return Optional.empty();
                     }
-                }).filter(o -> o.isPresent())
-                .map(x -> (User) x.get())
+                }).flatMap(o -> o.isPresent() ? Stream.of((User) o.get()) : Stream.empty())
                 .collect(Collectors.toList());
         } else {
             if (verbose) System.out.println("Generator users file: " + usersFile);
@@ -212,8 +215,13 @@ public class Main {
                 .mapToObj(i -> generateUser())
                 .collect(Collectors.toList());
 
+            final Path usersPath = Paths.get(usersFile);
+            if (Files.deleteIfExists(usersPath)) {
+                // I found, if an existing file was not emptied, it retained its final characters/lines
+                System.err.printf("Warning: Existing file %s was deleted before writing to it.\n", usersFile);
+            }
             try (final BufferedWriter out = Files.newBufferedWriter(
-                Paths.get(usersFile),
+                usersPath,
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE
             )) {
@@ -221,7 +229,6 @@ public class Main {
                     out.write(json.writeValueAsString(u));
                     out.write('\n');
                 }
-                out.flush();
             }
 
             return users;
