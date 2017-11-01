@@ -10,6 +10,7 @@ import com.google.common.collect.Range;
 import com.twitter.Extractor;
 import org.dcw.twitter.model.User;
 import org.dcw.twitter.model.Tweet;
+import org.dcw.twitter.util.PoissonGenerator;
 import org.dcw.twitter.util.RandomDate;
 import org.dcw.twitter.util.Utils;
 
@@ -404,12 +405,13 @@ public class Main {
         ZonedDateTime zdt2 = Utils.toZDT(LocalDateTime.from(stop));
         long ts1 = zdt1.toEpochSecond();
         long ts2 = zdt2.toEpochSecond();
-        long gap = (ts2 - ts1) / (tweetCount - 1);
+        long gap = (ts2 - ts1) / (tweetCount /*- 1*/);
 
         List<String> timestamps = Lists.newArrayList();
+        long currentTS = ts1;
         for (int i = 0; i < tweetCount; i++) {
-            long secondsAfterTS1 = i * gap + ts1;
-            timestamps.add(TWITTER_TIMESTAMP_FORMAT.format(zdt1.plus(secondsAfterTS1, ChronoUnit.SECONDS)));
+            timestamps.add(TWITTER_TIMESTAMP_FORMAT.format(zdt1.plus(currentTS, ChronoUnit.SECONDS)));
+            currentTS += (long) PoissonGenerator.getNext(gap);
         }
         return timestamps;
     }

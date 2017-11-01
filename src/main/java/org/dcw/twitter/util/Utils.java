@@ -1,6 +1,5 @@
 package org.dcw.twitter.util;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
