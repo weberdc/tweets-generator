@@ -207,11 +207,7 @@ public class Main {
                 .collect(Collectors.toList());
         } else {
             if (verbose) System.out.println("Generator users file: " + usersFile);
-//            final List<User> users = Lists.newArrayList();
-//
-//            for (int i = 0; i < userCount; i++) {
-//                users.add(generateUser());
-//            }
+
             final List<User> users = IntStream.range(0, userCount)
                 .mapToObj(i -> generateUser())
                 .collect(Collectors.toList());
@@ -422,21 +418,12 @@ public class Main {
         }
         final long meanDelay = (stopZDT.toEpochSecond() - startZDT.toEpochSecond()) / tweetCount;
 
-//        final List<String> timestamps = Lists.newArrayList();
-        final AtomicLong secondsSinceStart = new AtomicLong();//0L;
-        final List<String> timestamps = IntStream.range(0, tweetCount).mapToObj(i -> {
-            final ZonedDateTime newTimestamp = startZDT.plus(secondsSinceStart.getAndAdd((long) PoissonGenerator.getNext(meanDelay)), ChronoUnit.SECONDS);
-//            secondsSinceStart.getAndAdd((long) PoissonGenerator.getNext(meanDelay));
-//            timestamps.add(TWITTER_TIMESTAMP_FORMAT.format(newTimestamp));
-//            secondsSinceStart += (long) PoissonGenerator.getNext(meanDelay);
+        final AtomicLong secondsSinceStart = new AtomicLong();
+        return IntStream.range(0, tweetCount).mapToObj(i -> {
+            final long sinceStart = secondsSinceStart.getAndAdd((long) PoissonGenerator.getNext(meanDelay));
+            final ZonedDateTime newTimestamp = startZDT.plus(sinceStart, ChronoUnit.SECONDS);
             return TWITTER_TIMESTAMP_FORMAT.format(newTimestamp);
         }).collect(Collectors.toList());
-//        for (int i = 0; i < tweetCount; i++) {
-//            final ZonedDateTime newTimestamp = startZDT.plus(secondsSinceStart, ChronoUnit.SECONDS);
-//            timestamps.add(TWITTER_TIMESTAMP_FORMAT.format(newTimestamp));
-//            secondsSinceStart += (long) PoissonGenerator.getNext(meanDelay);
-//        }
-        return timestamps;
     }
 
     private void reportConfiguration(TemporalAccessor start, TemporalAccessor stop) {
