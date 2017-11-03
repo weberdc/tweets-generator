@@ -16,7 +16,7 @@ current 24 hour period is used as a default).
 
 ### Acknowledgements
 
-Thank you to Project Gutenberg for the text of Lewis Carroll's 
+Thank you to Project Gutenberg for the text of Lewis Carroll's
 [Alice in Wonderland](https://www.gutenberg.org/files/11/11-h/11-h.htm), which was used
 as test data.
 
@@ -60,6 +60,13 @@ Usage: bin/tweets-generator[.bat] [options]
       End time, as a timestamp (YYYYMMddHHmm), e.g. 201703270930 is 9:30am,
       27th March 2017
       Default: 201710300930
+    -g, --geo-box
+      A geo-box for tweets to occur in, NW and SE lat/longs expressed as four
+      doubles separated by commas (no spaces)
+      Default: [90.0, -180.0, -90.0, 180.0]
+    -gr, --geo-rate
+      Percentage of tweets to which to attach geo info
+      Default: 100.0
     -h, -?, --help
       Help (default: false)
       Default: false
@@ -70,7 +77,7 @@ Usage: bin/tweets-generator[.bat] [options]
       File to which to write generated tweets, one tweet per line
       Default: 20171030-am-tweets.json
     --regenerate-users
-      Regenerate users. NB will wipe users file! (default: false)
+      Regenerate users. NB will wipe users file!
       Default: false
     -c, --tweet-count
       Number of tweets to generate
@@ -82,11 +89,13 @@ Usage: bin/tweets-generator[.bat] [options]
       File of user profiles, one JSON object per line
       Default: users.json
     -v, --verbose
-      Verbose logging mode (default: false)
+      Verbose logging mode
       Default: false
 </pre>
 
-Run the app, requesting user profiles be regenerated (into `my-users.json`):
+Run the app, requesting user profiles be regenerated (into `my-users.json`).
+The geobox specified is roughly Adelaide, South Australia, and we've said that
+we want geo-locations on roughly 75% of tweets.
 <pre>
 prompt> bin/tweets-generator -m data/alice-in-wonderland-snippets.txt \
   --begin-timestamp 201711200830 --end-timestamp 201711201730 \
@@ -95,10 +104,11 @@ prompt> bin/tweets-generator -m data/alice-in-wonderland-snippets.txt \
   --users-file my-users.json \
   --users-count 150 \
   --tweet-count 10000 \
+  --geo-rate 75 \
+  --geo-box -34.773,138.482,-35.025,138.741 \
   --verbose
 </pre>
 
 This will create a file `20171020-am-10k.json` containing 10,000 tweets, as
 one JSON object per line. It will also create a file `my-users.json` with 150 user
 profiles (one JSON object per line).
-

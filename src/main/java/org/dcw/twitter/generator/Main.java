@@ -8,6 +8,7 @@ import com.google.common.collect.*;
 import com.twitter.Extractor;
 import org.dcw.twitter.model.User;
 import org.dcw.twitter.model.Tweet;
+import org.dcw.twitter.util.GeoboxConverter;
 import org.dcw.twitter.util.PoissonGenerator;
 import org.dcw.twitter.util.RandomDate;
 import org.dcw.twitter.util.Utils;
@@ -65,12 +66,18 @@ public class Main {
     private Integer tweetCount = 100;
     @Parameter(names = {"-uc", "--users-count"}, description = "Number of users to generate if they don't exist")
     private Integer userCount = 100;
-    @Parameter(names = {"--regenerate-users"}, description = "Regenerate users. NB will wipe users file! (default: false)")
+    @Parameter(names = {"--regenerate-users"}, description = "Regenerate users. NB will wipe users file!")
     private boolean regenerateUsers = false;
-    @Parameter(names = {"-v", "--verbose"}, description = "Verbose logging mode (default: false)")
+    @Parameter(names = {"-v", "--verbose"}, description = "Verbose logging mode")
     private static boolean verbose = false;
+    @Parameter(names = { "-g", "--geo-box" },
+        description = "A geo-box for tweets to occur in, NW and SE lat/longs expressed as four doubles separated by commas (no spaces)",
+        listConverter = GeoboxConverter.class)
+    private List<Double> geobox = Lists.newArrayList(90.0, -180.0, -90.0, 180.0); // [NW-lat,NW-lon,SE-lat,SE-lon]
+    @Parameter(names = {"-gr", "--geo-rate"}, description = "Percentage of tweets to which to attach geo info")
+    private double geoRate = 100.0;
 
-    @Parameter(names = {"-h", "-?", "--help"}, description = "Help (default: false)")
+    @Parameter(names = {"-h", "-?", "--help"}, description = "Help")
     private static boolean help = false;
 
     private final ObjectMapper json = new ObjectMapper();
@@ -81,6 +88,16 @@ public class Main {
         LocalDate.now().minus(6, ChronoUnit.MONTHS) // up to 6 months ago
     );
 
+    static class LatLong {
+        public final double latitude;
+        public final double longitude;
+
+        public LatLong(final double latitude, final double longitude) {
+            this.latitude = latitude;
+            this.longitude = longitude;
+        }
+    }
+
     public Main () {
         setupRandomGenerators();
         setupUserCounts();
@@ -90,7 +107,8 @@ public class Main {
         for (String name : asList(
             "favorites_count", "favorited", "msgIndices", "userIndices", "id", "quote_count", "reply_count",
             "retweet_count", "user_id", "name_parts", "screen_name_parts", "activity_level", "counts",
-            "boolean", "default_profile", "famous", "colour", "images", "isProtected", "isVerified", "source"
+            "boolean", "default_profile", "famous", "colour", "images", "isProtected", "isVerified", "source",
+            "geo_rate", "geo"
         )) {
             randoms.put(name, new Random());
         }
@@ -285,7 +303,7 @@ public class Main {
             TWITTER_TIMESTAMP_FORMAT.format(estabTimestamp), // created_at
             36000, // utc_offset
             "Adelaide", // time_zone
-            randoms.get("boolean").nextBoolean(), // geo_offset
+            true, // geo_enabled (assume all users _might_ post geo)
             "en", // lang
             false, // contributors_enabled
             Utils.randomColour(randoms.get("colour")), // profile_background_color
@@ -354,8 +372,17 @@ public class Main {
         final boolean withheldCopyright = false;
         final String source = Resources.SOURCES.get(nextInt("source", Resources.SOURCES.size()));
         final long id = Utils.generateID(randoms.get("id"));
+
+        // to use if geo is required
+        final Boolean useGeo = randoms.get("geo_rate").nextDouble() < (geoRate / 100.0);
+        final LatLong ll = useGeo ? generateLatLong() : null;
+        final Map<String, ?> coords = useGeo ? generateCoordsObject(ll.latitude, ll.longitude): null;
+        final Map<String, ?> geo = useGeo ? generateCoordsObject(ll.longitude, ll.latitude): null;
+        // 'place' is not generated, though it could be looked up with reverse_geocode:
+        // https://developer.twitter.com/en/docs/geo/places-near-location/api-reference/get-geo-reverse_geocode
+
         return new Tweet(
-            null, // coordinates
+            coords, // coordinates (lat, long)
             createdAt, // created_at
             null, // current_user_retweet
             createEntities(message), // entities
@@ -363,7 +390,7 @@ public class Main {
             favouritesCount, // favorites_count
             favouritedOrNot, // favorited
             "low", // filter_level (none, low, medium)
-            Collections.emptyMap(), // geo
+            geo, // geo (long, lat) // deprecated https://groups.google.com/d/msg/twitter-development-talk/nk6nUXgXSQg/ftoAg0mtDkoJ
             id, // id
             null, // in_reply_to_screen_name
             null, // in_reply_to_status_id
@@ -374,7 +401,7 @@ public class Main {
             Long.toString(id), // id_str
             "en", // lang
             null, // matching_rules
-            null, // place
+            null, // place // could be looked up with reverse_geocode https://developer.twitter.com/en/docs/geo/places-near-location/api-reference/get-geo-reverse_geocode
             null, // possibly_sensitive
             quoteCount, // quote_count
             null, // quoted_status
@@ -393,6 +420,31 @@ public class Main {
             null, // withheld_in_countries
             null // withheld_scope
         );
+    }
+
+    private LatLong generateLatLong() {
+        final double nwLat = geobox.get(1), nwLon = geobox.get(0);
+        final double seLat = geobox.get(3), seLon = geobox.get(2);
+
+        double longitude = randoms.get("geo").nextDouble() * (seLon - nwLon) + nwLon;
+        while (longitude > 180.0) longitude -= 360.0;
+        while (longitude < -180.0) longitude += 360.0;
+
+        double latitude = randoms.get("geo").nextDouble() * (seLat - nwLat) + nwLat;
+        while (latitude > 90.0) latitude -= 180.0;
+        while (latitude < -90.0) latitude += 180.0;
+
+        return new LatLong(latitude, longitude);
+    }
+
+    private Map<String, Object> generateCoordsObject(
+        final double coordsPart1,
+        final double coordsPart2
+    ) {
+        final Map<String, Object> coordsObj = Maps.newTreeMap();
+        coordsObj.put("coordinates", Lists.newArrayList(coordsPart1, coordsPart2));
+        coordsObj.put("type", "Point");
+        return coordsObj;
     }
 
     private Map<String, ?> createEntities(final String message) {
