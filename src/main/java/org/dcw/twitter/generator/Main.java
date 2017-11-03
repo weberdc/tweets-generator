@@ -181,7 +181,13 @@ public class Main {
     public void run() throws IOException {
 
         System.out.println("Generating random tweets");
-        final List<String> messages = Files.readAllLines(Paths.get(messagesFile));
+        final List<String> messages = Files.newBufferedReader(Paths.get(messagesFile))
+            .lines()
+            .filter(l -> {
+                final String trimmed = l.trim();
+                return trimmed.length() > 0 && ! trimmed.startsWith("#");
+            })
+            .collect(Collectors.toList());
 
         final List<User> users = loadOrCreateUserProfiles(); // from or into usersFile
 
@@ -225,7 +231,8 @@ public class Main {
                         System.err.printf("Warning: Failed to parse JSON: %s:%d\n%s", usersFile, lineNumber.get(), l);
                         return Optional.empty();
                     }
-                }).flatMap(o -> o.isPresent() ? Stream.of((User) o.get()) : Stream.empty())
+                })
+                .flatMap(o -> o.isPresent() ? Stream.of((User) o.get()) : Stream.empty())
                 .collect(Collectors.toList());
         } else {
             if (verbose) System.out.println("Generator users file: " + usersFile);
